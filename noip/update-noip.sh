@@ -1,6 +1,8 @@
 #!/bin/sh 
 
 ## Automatically add myip to noip
+## add crontab
+## * */1 * * * sh /${home}/update-noip.sh > $HOME/cron.log 2>&1
 
 USERNAME=
 PASSWORD=
