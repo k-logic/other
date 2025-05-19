@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html>
+<head><title>WebRTC Viewer</title></head>
+<body>
+<h1>映像ストリーム</h1>
+<video id="video" autoplay muted playsinline controls></video>
+<script>
+let pc = null;
+const wsProtocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+const ws = new WebSocket(wsProtocol + '//' + location.host)
+
+function createPeer() {
+  pc = new RTCPeerConnection()
+
+  pc.onicecandidate = ({ candidate }) => {
+    if (candidate) {
+      ws.send(JSON.stringify({ role: 'browser', candidate }))
+    }
+  }
+
+  pc.ontrack = (event) => {
+    console.log("Received track:", event)
+    document.getElementById('video').srcObject = event.streams[0]
+  }
+}
+
+ws.onopen = () => {
+  console.log('ws.onopen')
+  ws.send(JSON.stringify({ role: 'browser' }))
+  console.log('browser.send')
+  //ws.send(JSON.stringify({ role: 'browser_ready' }))
+  setTimeout(() => {
+    ws.send(JSON.stringify({ role: 'browser_ready' }));
+    console.log('browser_ready.send')
+  }, 3000);
+}
+
+ws.onmessage = async ({ data }) => {
+  console.log('ws.onmessage')
+  const msg = JSON.parse(data)
+  console.log(msg)
+
+  if (msg.sdp && msg.sdp.type === 'offer') {
+    if (pc) pc.close()
+    createPeer()
+
+    await pc.setRemoteDescription(new RTCSessionDescription(msg.sdp))
+    const answer = await pc.createAnswer()
+    await pc.setLocalDescription(answer)
+    ws.send(JSON.stringify({ role: 'browser', sdp: pc.localDescription }))
+  } else if (msg.candidate) {
+    await pc.addIceCandidate(new RTCIceCandidate(msg.candidate))
+  }
+}
+
+createPeer()
+
+</script>
+</body>
+</html>

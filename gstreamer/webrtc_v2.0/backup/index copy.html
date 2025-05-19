@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html>
+<head><title>WebRTC Viewer</title></head>
+<body>
+<h1>映像ストリーム</h1>
+<video id="video" autoplay muted playsinline controls></video>
+<script>
+const pc = new RTCPeerConnection();
+const ws = new WebSocket('wss://' + location.host);
+console.log(ws)
+
+ws.onopen = () => {
+  console.log('ws.onopen')
+  ws.send(JSON.stringify({ role: 'browser' }));
+};
+
+ws.onmessage = async ({ data }) => {
+  console.log('ws.onmessage')
+  const msg = JSON.parse(data);
+  if (msg.sdp) {
+    await pc.setRemoteDescription(new RTCSessionDescription(msg.sdp));
+    if (msg.sdp.type === 'offer') {
+      const answer = await pc.createAnswer();
+      await pc.setLocalDescription(answer);
+      ws.send(JSON.stringify({ role: 'browser', sdp: pc.localDescription }));
+    }
+  } else if (msg.candidate) {
+    await pc.addIceCandidate(new RTCIceCandidate(msg.candidate));
+  }
+};
+
+pc.onicecandidate = ({ candidate }) => {
+  console.log("Sending candidate", candidate);
+  if (candidate) {
+    ws.send(JSON.stringify({ role: 'browser', candidate }));
+  }
+};
+
+pc.ontrack = (event) => {
+  console.log("Received track:", event);
+  document.getElementById('video').srcObject = event.streams[0];
+};
+</script>
+</body>
+</html>
